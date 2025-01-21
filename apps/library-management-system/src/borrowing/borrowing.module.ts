@@ -6,19 +6,21 @@ import { BorrowingController } from "./borrowing.cotroller";
 import { UserModule } from "../users/user.module";
 import { BookModule } from "../books/book.module";
 import { DatabaseModule } from "../mongodb/database.module";
-import { borrowProviders } from "./borrow.provider";
-
+// import { borrowProviders } from "./borrow.provider";
+import { BorrowRepositary } from "./borrowing.repositary";
 
 @Module({
     imports: [
     DatabaseModule,
     BookModule,
-    UserModule
+    UserModule,
 ],
     controllers: [BorrowingController],
     providers: [
         BorrowingService,
-        ...borrowProviders
+       // ...borrowProviders,
+        BorrowRepositary
     ],
+    exports: [BorrowingService]
 })
 export class BorrowingModule {}
