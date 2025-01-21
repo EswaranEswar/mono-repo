@@ -1,39 +1,64 @@
-import { InjectModel } from "@nestjs/mongoose";
-import { Model } from "mongoose";
 import { UpdateUserDto, User } from "./schema/user.schema";
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { CreateUserDto } from "./schema/user.schema";
+import { UserRepositary } from "./user.repositsry";
+import { BorrowRepositary } from "../borrowing/borrowing.repositary";
+import { EventEmitter2 } from "@nestjs/event-emitter";
+
 
 @Injectable()
 export class UserService {
-    //constructor(@InjectModel('User') private userModel: Model<User>) {}
-    constructor(@Inject('USER_MODEL') private userModel: Model<User>) {}
+    getById(userId: string): { userId?: string; totalBorrowedBooks?: number; } | PromiseLike<{ userId?: string; totalBorrowedBooks?: number; }> {
+        throw new Error("Method not implemented.");
+    }
+    constructor(
+        private readonly userRepo: UserRepositary,
+        private readonly borrowRepo:BorrowRepositary,
+        private readonly eventEmitter: EventEmitter2,
+    ) {
+        if (!userRepo) {
+            throw new Error('UserRepositary is not initialized');
+        }
+        console.log('UserRepositary initialized:', userRepo);
+    }
 
     //create a new user
     async create(user: CreateUserDto): Promise<User> {
-        const createdUser = new this.userModel(user);
-        return createdUser.save();  
+        try {
+            const createdUser = await this.userRepo.create(user);
+            //emit the event to the stats service
+            this.eventEmitter.emit('user-created',createdUser);
+            return createdUser;  
+        } catch (error) {
+            throw new Error('Error creating user: ' + (error.message || 'Unknown error'));
+        }
+
     }
     async findAll(): Promise<User[]> {
-        return this.userModel.find();
+        return (await this.userRepo.findAll());
     }
-    async getUser(id: string): Promise<User> {
+    async findById(id:string): Promise<User> {
         if(!id) {
             throw new NotFoundException('User not found');
         }
-        return this.userModel.findById(id);
+        return (await this.userRepo.findById(id));
     }
     async findOne(username: string): Promise<User> {
-        return this.userModel.findOne({username:username});
+        
+        return (await this.userRepo.findOne(username));
     }
-    async update(id: string, user: UpdateUserDto): Promise<User> {
-        return this.userModel.findByIdAndUpdate(id, user, { new: true });
+    async update(id: string, user: UpdateUserDto): Promise<User[]> {
+        return await this.userRepo.findByIdAndUpdate(id,user);
     }
     async delete(id: string): Promise<{message: string, user: User}> {
-        const deletedUser = await this.userModel.findByIdAndDelete(id);
+        const deletedUser = await this.userRepo.findByIdAndDelete(id);
         if(!deletedUser) {
             throw new NotFoundException('User not found');
         }
-        return {message: 'User removed successfully', user: deletedUser};
+        const isBooksReturned = await this.borrowRepo.findByUserId(id)
+        if(isBooksReturned.length > 0){
+            throw new Error('User cannot be deleted because they have not returned the books');
+        }
+        return {message: 'User removed successfully', user:deletedUser};
     }
 }  
